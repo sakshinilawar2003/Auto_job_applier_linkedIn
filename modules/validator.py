@@ -85,6 +85,7 @@ def validate_questions() -> None | ValueError | TypeError:
     check_boolean(pause_before_submit, "pause_before_submit")
     check_boolean(pause_at_failed_question, "pause_at_failed_question")
     check_boolean(overwrite_previous_answers, "overwrite_previous_answers")
+    check_boolean(follow_applied_companies, "follow_applied_companies")
 
 
 from config.search import *
@@ -122,6 +123,7 @@ def validate_search() -> None | ValueError | TypeError:
     check_boolean(security_clearance, "security_clearance")
     check_boolean(did_masters, "did_masters")
     check_int(current_experience, "current_experience", -1)
+    check_string(preferred_work_style, "preferred_work_style")
 
 
 

@@ -69,7 +69,7 @@ failed_count = 0
 skip_count = 0
 dailyEasyApplyLimitReached = False
 
-re_experience = re.compile(r'[(]?\s*(\d+)\s*[)]?\s*[-to]*\s*\d*[+]*\s*year[s]?', re.IGNORECASE)
+re_experience = re.compile(r'[(]?\s*(\d+)\s*[)]?\s*[-to]*\s*\d*[+]*\s*(?:year|yr)[s]?', re.IGNORECASE)
 
 desired_salary_lakhs = str(round(desired_salary / 100000, 2))
 desired_salary_monthly = str(round(desired_salary/12, 2))
@@ -271,7 +271,7 @@ def get_job_main_details(job: WebElement, blacklisted_companies: set, rejected_j
     company = job.find_element(By.CLASS_NAME, "job-card-container__primary-description").text
     job_id = job.get_dom_attribute('data-occludable-job-id')
     work_location = job.find_element(By.CLASS_NAME, "job-card-container__metadata-item").text
-    work_style = work_location[work_location.rfind('(')+1:work_location.rfind(')')]
+    work_style = work_location[work_location.rfind('(')+1:work_location.rfind(')')].strip()
     work_location = work_location[:work_location.rfind('(')].strip()
     # Skip if previously rejected due to blacklist or already applied
     skip = False
@@ -727,7 +727,7 @@ def apply_to_jobs(search_terms: list[str]) -> None:
     applied_jobs = get_applied_job_ids()
     rejected_jobs = set()
     blacklisted_companies = set()
-    global current_city, failed_count, skip_count, easy_applied_count, external_jobs_count, tabs_count, pause_before_submit, pause_at_failed_question, useNewResume
+    global current_city, failed_count, skip_count, easy_applied_count, external_jobs_count, tabs_count, pause_before_submit, pause_at_failed_question, useNewResume, follow_applied_companies, preferred_work_style
     current_city = current_city.strip()
 
     if randomize_search_order:  shuffle(search_terms)
@@ -750,7 +750,7 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                 buffer(3)
                 job_listings = driver.find_elements(By.CLASS_NAME, "jobs-search-results__list-item")  
 
-            
+       
                 for job in job_listings:
                     if keep_screen_awake: pyautogui.press('shiftright')
                     if current_count >= switch_number: break
@@ -831,7 +831,20 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                         date_listed = calculate_date_posted(time_posted_text)
                     except Exception as e:
                         print_lg("Failed to calculate the date posted!",e)
-
+                        
+                    # Check for on-site / remote / hybrid
+                    if preferred_work_style != '':
+                        try:
+                            if not preferred_work_style in work_style.lower():
+                                message = f'\nWork style for {company} is not {preferred_work_style}. Skipping this job!\n'
+                                reason = "Work Style is not correct!"
+                                print_lg(f'Skipping "{title} | {company}" job {work_style}. Job ID: {job_id}!')
+                                failed_job(job_id, job_link, resume, date_listed, reason, message, "Skipped", screenshot_name)
+                                rejected_jobs.add(job_id)
+                                skip_count += 1
+                                continue
+                        except Exception as e:
+                            print_lg("Failed to skip to Work style for Company!")
 
                     description, experience_required, skip, reason, message = get_job_description()
                     if skip:
@@ -891,6 +904,8 @@ def apply_to_jobs(search_terms: list[str]) -> None:
                                     if decision == "Discard Application": raise Exception("Job application discarded by user!")
                                     pause_before_submit = False if "Disable Pause" == decision else True
                                     try_xp(modal, ".//span[normalize-space(.)='Review']")
+                                if not follow_applied_companies: 
+                                    unfollow_company(modal)
                                 if wait_span_click(driver, "Submit application", 2, scrollTop=True): 
                                     date_applied = datetime.now()
                                     if not wait_span_click(driver, "Done", 2): actions.send_keys(Keys.ESCAPE).perform()
@@ -947,7 +962,15 @@ def apply_to_jobs(search_terms: list[str]) -> None:
             critical_error_log("In Applier", e)
             # print_lg(e)
 
-        
+def unfollow_company(modal: WebElement) -> None:
+    try: 
+        unfollow_company_button = try_xp(modal, './/label[@for="follow-company-checkbox"]')
+        if unfollow_company_button:
+            scroll_to_view(modal, unfollow_company_button)
+            unfollow_company_button.click()
+    except Exception as e:
+        print_lg("Failed to unfollow company")
+
 def run(total_runs: int) -> int:
     if dailyEasyApplyLimitReached:
         return total_runs
